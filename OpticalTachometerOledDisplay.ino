@@ -10,13 +10,13 @@ RPM Tachometer with OLED digital and analog display
 #define OLED_RESET 4
 #define TEXT_SIZE_SMALL 1
 #define TEXT_SIZE_LARGE 2
-#define ONE_K 1000
+#define ONE_K
 
 namespace {
 
 const uint16_t OLED_HEIGHT = 64;
 const uint16_t OLED_WIDTH = 128;
-const uint16_t YELLOW_SEGMENT_HEIGHT = 16;
+const uint16_t YELLOW_SEGMENT_HEIGHT = 16
 
 const uint16_t DIAL_CENTER_X = OLED_WIDTH / 2;
 const uint16_t DIAL_RADIUS = (OLED_HEIGHT - YELLOW_SEGMENT_HEIGHT) - 1;
