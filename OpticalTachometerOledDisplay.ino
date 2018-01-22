@@ -10,13 +10,15 @@ RPM Tachometer with OLED digital and analog display
 #define OLED_RESET 4
 #define TEXT_SIZE_SMALL 1
 #define TEXT_SIZE_LARGE 2
-#define ONE_K
+#define ONE_K 1000
+
+#define OLED_HEIGHT 64
+#define OLED_WIDTH 128
+#define YELLOW_SEGMENT_HEIGHT 16
+#define DISPLAY_FULL_BRIGHTNESS 255
+#define DISPLAY_DIM_BRIGHTNESS 0
 
 namespace {
-
-const uint16_t OLED_HEIGHT = 64;
-const uint16_t OLED_WIDTH = 128;
-const uint16_t YELLOW_SEGMENT_HEIGHT = 16
 
 const uint16_t DIAL_CENTER_X = OLED_WIDTH / 2;
 const uint16_t DIAL_RADIUS = (OLED_HEIGHT - YELLOW_SEGMENT_HEIGHT) - 1;
@@ -42,18 +44,23 @@ const uint16_t DIAL_MAX_RPM = MAJOR_TICKS[MAJOR_TICK_COUNT-1];
 const int HALF_CIRCLE_DEGREES = 180;
 const float PI_RADIANS = PI/HALF_CIRCLE_DEGREES;
 
-const long DISPLAY_UPDATE_INTERVAL = 1000;
 const double MILLIS_PER_SECOND = 1000.0;
 const double SECONDS_PER_MINUTE = 60.0;
+const long DISPLAY_TIMEOUT_INTERVAL = 120 * MILLIS_PER_SECOND;
+const long DISPLAY_UPDATE_INTERVAL = 200;
 
 const int IR_LED_PIN_3 = 3;
 const int PHOTODIODE_PIN_2 = 2;
 const int INTERRUPT_ZERO_ON_PIN_2 = 0;
 
 volatile unsigned long revolutions;
+int number_average_intervals = 5;
+
 unsigned long previous_revolutions = 0;
 unsigned long previous_millis = 0;
 unsigned long previous_display_millis = 0;
+unsigned long last_sensor_time = 0;
+bool is_oled_display_on = false;
 }
 
 Adafruit_SSD1306 display(OLED_RESET);
@@ -65,20 +72,42 @@ void setup() {
 	
 	turnOnIrLED();
 	attachPhotodiodeToInterrruptZero();
+  last_sensor_time = millis();
+  turnOnDisplay();
 }
 
 void loop() {
-
 	unsigned long current_millis = millis();
+  if (current_millis - last_sensor_time >= DISPLAY_TIMEOUT_INTERVAL) {
+    turnOffDisplay();
+  } else if (current_millis - last_sensor_time >= DISPLAY_TIMEOUT_INTERVAL/2) {
+    dimDisplay();
+  } 
+	
 	if (current_millis - previous_millis >= DISPLAY_UPDATE_INTERVAL) {
-	    previous_millis = current_millis;
-		updateDisplay();
-		//printSensorStatus();
+	   previous_millis = current_millis;
+		 updateDisplay();
+		 //printSensorStatus();
 	}
 }
 
 void initOledDisplayWithI2CAddress(uint8_t i2c_address) {
 	display.begin(SSD1306_SWITCHCAPVCC, i2c_address);
+}
+
+void turnOnDisplay() {
+  display.ssd1306_command(SSD1306_DISPLAYON); 
+  display.dim(false);;
+  is_oled_display_on = true;
+}
+
+void turnOffDisplay() {
+  display.ssd1306_command(SSD1306_DISPLAYOFF); 
+  is_oled_display_on = false;
+}
+
+void dimDisplay() {
+  display.dim(true);
 }
 
 void turnOnIrLED() {
@@ -103,10 +132,19 @@ void printSensorStatus() {
 
 void updateDisplay() {
 	long rpm = calculateRpm();
-	display.clearDisplay();
-	drawRpmBanner(rpm);
-	drawDial(rpm);
-	display.display();
+  if (rpm > 0) {
+    last_sensor_time = millis();
+    if (!is_oled_display_on) {
+      turnOnDisplay();
+    }
+  }
+  if (is_oled_display_on) {
+    display.clearDisplay();
+    drawRpmBanner(rpm);
+    drawDial(rpm);
+    display.dim(false);
+    display.display();
+  }
 }
 
 void printRpmCalculationValues(unsigned long current_millis,
