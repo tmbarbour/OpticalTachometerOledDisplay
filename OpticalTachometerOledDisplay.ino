@@ -1,7 +1,7 @@
 /*********************************************************************
 RPM Tachometer with OLED digital and analog display
  *********************************************************************/
-
+ 
 #include <Wire.h>
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
