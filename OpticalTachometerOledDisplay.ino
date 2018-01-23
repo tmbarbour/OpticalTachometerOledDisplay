@@ -30,13 +30,13 @@ const int DIAL_LABEL_Y_OFFSET = 6;
 const int DIAL_LABEL_X_OFFSET = 4;
 
 const long MAJOR_TICKS[] =
-    { 0, 10000, 20000, 30000 };
+		{ 0, 10000, 20000, 30000 };
 const int MAJOR_TICK_COUNT = sizeof(MAJOR_TICKS)
-    / sizeof(MAJOR_TICKS[0]);
+		/ sizeof(MAJOR_TICKS[0]);
 const int  MAJOR_TICK_LENGTH = 7;
 const long MINOR_TICKS[] = {5000, 15000, 25000};
 const int MINOR_TICK_COUNT = sizeof(MINOR_TICKS)
-    / sizeof(MINOR_TICKS[0]);
+		/ sizeof(MINOR_TICKS[0]);
 const int MINOR_TICK_LENGTH = 3;
 
 const uint16_t DIAL_MAX_RPM = MAJOR_TICKS[MAJOR_TICK_COUNT-1];
@@ -47,6 +47,7 @@ const float PI_RADIANS = PI/HALF_CIRCLE_DEGREES;
 const double MILLIS_PER_SECOND = 1000.0;
 const double SECONDS_PER_MINUTE = 60.0;
 const long DISPLAY_TIMEOUT_INTERVAL = 120 * MILLIS_PER_SECOND;
+const long DISPLAY_DIM_INTERVAL = DISPLAY_TIMEOUT_INTERVAL/2;
 const long DISPLAY_UPDATE_INTERVAL = 200;
 
 const int IR_LED_PIN_3 = 3;
@@ -61,6 +62,7 @@ unsigned long previous_millis = 0;
 unsigned long previous_display_millis = 0;
 unsigned long last_sensor_time = 0;
 bool is_oled_display_on = false;
+bool is_oled_display_dim = false;
 }
 
 Adafruit_SSD1306 display(OLED_RESET);
@@ -69,7 +71,7 @@ void setup() {
   Serial.begin(9600);
   initOledDisplayWithI2CAddress(0x3C);
   display.setTextColor(WHITE);
-
+	
   turnOnIrLED();
   attachPhotodiodeToInterrruptZero();
   last_sensor_time = millis();
@@ -80,14 +82,14 @@ void loop() {
   unsigned long current_millis = millis();
   if (current_millis - last_sensor_time >= DISPLAY_TIMEOUT_INTERVAL) {
     turnOffDisplay();
-  } else if (current_millis - last_sensor_time >= DISPLAY_TIMEOUT_INTERVAL/2) {
+  } else if (current_millis - last_sensor_time >= DISPLAY_DIM_INTERVAL) {
     dimDisplay();
-  } 
-
+  }  
+  
   if (current_millis - previous_millis >= DISPLAY_UPDATE_INTERVAL) {
     previous_millis = current_millis;
     updateDisplay();
-  }
+	}
 }
 
 void initOledDisplayWithI2CAddress(uint8_t i2c_address) {
@@ -98,15 +100,18 @@ void turnOnDisplay() {
   display.ssd1306_command(SSD1306_DISPLAYON); 
   display.dim(false);;
   is_oled_display_on = true;
+  is_oled_display_dim = false;
 }
 
 void turnOffDisplay() {
   display.ssd1306_command(SSD1306_DISPLAYOFF); 
   is_oled_display_on = false;
+  is_oled_display_dim = false;
 }
 
 void dimDisplay() {
   display.dim(true);
+  is_oled_display_dim = true;
 }
 
 void turnOnIrLED() {
@@ -133,7 +138,7 @@ void updateDisplay() {
   long rpm = calculateRpm();
   if (rpm > 0) {
     last_sensor_time = millis();
-    if (!is_oled_display_on) {
+    if (!is_oled_display_on || is_oled_display_dim) {
       turnOnDisplay();
     }
   }
@@ -141,7 +146,6 @@ void updateDisplay() {
     display.clearDisplay();
     drawRpmBanner(rpm);
     drawDial(rpm);
-    display.dim(false);
     display.display();
   }
 }
@@ -154,17 +158,17 @@ void printRpmCalculationValues(unsigned long current_millis,
   Serial.print(" Prev Millis: ");
   Serial.print((long) (previous_display_millis));
   Serial.print(" Elapsed Millis: ");
-  Serial.print((long) (elapsed_millis));
-  Serial.print(" Elapsed Seconds: ");
-  Serial.print(elapsed_seconds);
-  Serial.print(" Current Rev: ");
-  Serial.print((long) (current_revolutions));
-  Serial.print(" Prev Rev: ");
-  Serial.print((long) (previous_revolutions));
-  Serial.print(" Delta Rev: ");
-  Serial.print(delta_revolutions);
-  Serial.print(" RPM: ");
-  Serial.println((long) (rpm));
+	Serial.print((long) (elapsed_millis));
+	Serial.print(" Elapsed Seconds: ");
+	Serial.print(elapsed_seconds);
+	Serial.print(" Current Rev: ");
+	Serial.print((long) (current_revolutions));
+	Serial.print(" Prev Rev: ");
+	Serial.print((long) (previous_revolutions));
+	Serial.print(" Delta Rev: ");
+	Serial.print(delta_revolutions);
+	Serial.print(" RPM: ");
+	Serial.println((long) (rpm));
 }
 
 long calculateRpm() {
@@ -204,59 +208,59 @@ void drawTickMarks() {
 
 void drawTicks(const long ticks[], int tick_count, int tick_length) {
   for (int tick_index = 0; tick_index < tick_count;
-      tick_index++) {
-    long rpm_tick_value = ticks[tick_index];
-    float tick_angle = (HALF_CIRCLE_DEGREES
-        * getPercentMaxRpm(rpm_tick_value)) + HALF_CIRCLE_DEGREES;
-    uint16_t dial_x = getCircleXWithLengthAndAngle(DIAL_RADIUS - 1,
-        tick_angle);
-    uint16_t dial_y = getCircleYWithLengthAndAngle(DIAL_RADIUS - 1,
-        tick_angle);
-    uint16_t tick_x = getCircleXWithLengthAndAngle(DIAL_RADIUS - tick_length, tick_angle);
-    uint16_t tick_y = getCircleYWithLengthAndAngle(DIAL_RADIUS - tick_length, tick_angle);
-    display.drawLine(dial_x, dial_y, tick_x, tick_y, WHITE);
-  }
+			tick_index++) {
+		long rpm_tick_value = ticks[tick_index];
+		float tick_angle = (HALF_CIRCLE_DEGREES
+				* getPercentMaxRpm(rpm_tick_value)) + HALF_CIRCLE_DEGREES;
+		uint16_t dial_x = getCircleXWithLengthAndAngle(DIAL_RADIUS - 1,
+				tick_angle);
+		uint16_t dial_y = getCircleYWithLengthAndAngle(DIAL_RADIUS - 1,
+				tick_angle);
+		uint16_t tick_x = getCircleXWithLengthAndAngle(DIAL_RADIUS - tick_length, tick_angle);
+		uint16_t tick_y = getCircleYWithLengthAndAngle(DIAL_RADIUS - tick_length, tick_angle);
+		display.drawLine(dial_x, dial_y, tick_x, tick_y, WHITE);
+	}
 }
 
 float getPercentMaxRpm(long value) {
-  float ret_value = (value * 1.0)/(DIAL_MAX_RPM * 1.0);
-  return ret_value;
+	float ret_value = (value * 1.0)/(DIAL_MAX_RPM * 1.0);
+	return ret_value;
 }
 
 float getCircleXWithLengthAndAngle(uint16_t radius, float angle) {
-  return DIAL_CENTER_X + radius * cos(angle*PI_RADIANS);
+	return DIAL_CENTER_X + radius * cos(angle*PI_RADIANS);
 };
 
 float getCircleYWithLengthAndAngle(uint16_t radius, float angle) {
-  return DIAL_CENTER_Y + radius * sin(angle*PI_RADIANS);
+	return DIAL_CENTER_Y + radius * sin(angle*PI_RADIANS);
 };
 
 void drawMajorTickLabels() {
-  display.setTextSize(TEXT_SIZE_SMALL);
-  for (int label_index = 0;
-      label_index < MAJOR_TICK_COUNT; label_index++) {
-    long rpm_tick_value = MAJOR_TICKS[label_index];
-    float tick_angle = (HALF_CIRCLE_DEGREES  * getPercentMaxRpm(rpm_tick_value))
-        + HALF_CIRCLE_DEGREES;
-    uint16_t dial_x = getCircleXWithLengthAndAngle(LABEL_RADIUS, tick_angle);
-    uint16_t dial_y = getCircleYWithLengthAndAngle(LABEL_RADIUS, tick_angle);
-    display.setCursor(dial_x - DIAL_LABEL_X_OFFSET,
-        dial_y - DIAL_LABEL_Y_OFFSET);
-    int label_value = rpm_tick_value / ONE_K;
-    display.print(label_value);
-  }
+	display.setTextSize(TEXT_SIZE_SMALL);
+	for (int label_index = 0;
+			label_index < MAJOR_TICK_COUNT; label_index++) {
+		long rpm_tick_value = MAJOR_TICKS[label_index];
+		float tick_angle = (HALF_CIRCLE_DEGREES	* getPercentMaxRpm(rpm_tick_value))
+				+ HALF_CIRCLE_DEGREES;
+		uint16_t dial_x = getCircleXWithLengthAndAngle(LABEL_RADIUS, tick_angle);
+		uint16_t dial_y = getCircleYWithLengthAndAngle(LABEL_RADIUS, tick_angle);
+		display.setCursor(dial_x - DIAL_LABEL_X_OFFSET,
+				dial_y - DIAL_LABEL_Y_OFFSET);
+		int label_value = rpm_tick_value / ONE_K;
+		display.print(label_value);
+	}
 }
 
 void drawIndicatorHand(long rpm_value) {
     float indicator_angle = (HALF_CIRCLE_DEGREES * getPercentMaxRpm(rpm_value))
-      + HALF_CIRCLE_DEGREES;
+			+ HALF_CIRCLE_DEGREES;
 
     uint16_t indicator_top_x = getCircleXWithLengthAndAngle(INDICATOR_LENGTH, indicator_angle);
     uint16_t indicator_top_y = getCircleYWithLengthAndAngle(INDICATOR_LENGTH, indicator_angle);
 
-  display.drawTriangle(DIAL_CENTER_X - INDICATOR_WIDTH / PHOTODIODE_PIN_2,
-      DIAL_CENTER_Y,
-                     DIAL_CENTER_X + INDICATOR_WIDTH / PHOTODIODE_PIN_2,
-      DIAL_CENTER_Y,
-             indicator_top_x, indicator_top_y, WHITE);
+	display.drawTriangle(DIAL_CENTER_X - INDICATOR_WIDTH / PHOTODIODE_PIN_2,
+			DIAL_CENTER_Y,
+    		             DIAL_CENTER_X + INDICATOR_WIDTH / PHOTODIODE_PIN_2,
+			DIAL_CENTER_Y,
+						 indicator_top_x, indicator_top_y, WHITE);
 }
