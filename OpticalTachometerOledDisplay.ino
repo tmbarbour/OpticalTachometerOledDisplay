@@ -7,62 +7,60 @@ RPM Tachometer with OLED digital and analog display
 #include <Adafruit_SSD1306.h>
 #include <Math.h>
 
-#define OLED_RESET 4
-#define TEXT_SIZE_SMALL 1
-#define TEXT_SIZE_LARGE 2
-#define ONE_K 1000
-
-#define OLED_HEIGHT 64
-#define OLED_WIDTH 128
-#define YELLOW_SEGMENT_HEIGHT 16
-#define DISPLAY_FULL_BRIGHTNESS 255
-#define DISPLAY_DIM_BRIGHTNESS 0
-
 namespace {
-
-const uint16_t DIAL_CENTER_X = OLED_WIDTH / 2;
-const uint16_t DIAL_RADIUS = (OLED_HEIGHT - YELLOW_SEGMENT_HEIGHT) - 1;
-const uint16_t DIAL_CENTER_Y = OLED_HEIGHT - 1;
-const uint16_t INDICATOR_LENGTH = DIAL_RADIUS - 5;
-const uint16_t INDICATOR_WIDTH = 5;
-const uint16_t LABEL_RADIUS = DIAL_RADIUS - 18;
-const int DIAL_LABEL_Y_OFFSET = 6;
-const int DIAL_LABEL_X_OFFSET = 4;
-
-const long MAJOR_TICKS[] =
-		{ 0, 10000, 20000, 30000 };
-const int MAJOR_TICK_COUNT = sizeof(MAJOR_TICKS)
-		/ sizeof(MAJOR_TICKS[0]);
-const int  MAJOR_TICK_LENGTH = 7;
-const long MINOR_TICKS[] = {5000, 15000, 25000};
-const int MINOR_TICK_COUNT = sizeof(MINOR_TICKS)
-		/ sizeof(MINOR_TICKS[0]);
-const int MINOR_TICK_LENGTH = 3;
-
-const uint16_t DIAL_MAX_RPM = MAJOR_TICKS[MAJOR_TICK_COUNT-1];
-
-const int HALF_CIRCLE_DEGREES = 180;
-const float PI_RADIANS = PI/HALF_CIRCLE_DEGREES;
-
-const double MILLIS_PER_SECOND = 1000.0;
-const double SECONDS_PER_MINUTE = 60.0;
-const long DISPLAY_TIMEOUT_INTERVAL = 120 * MILLIS_PER_SECOND;
-const long DISPLAY_DIM_INTERVAL = DISPLAY_TIMEOUT_INTERVAL/2;
-const long DISPLAY_UPDATE_INTERVAL = 200;
-
-const int IR_LED_PIN_3 = 3;
-const int PHOTODIODE_PIN_2 = 2;
-const int INTERRUPT_ZERO_ON_PIN_2 = 0;
-
-volatile unsigned long revolutions;
-int number_average_intervals = 5;
-
-unsigned long previous_revolutions = 0;
-unsigned long previous_millis = 0;
-unsigned long previous_display_millis = 0;
-unsigned long last_sensor_time = 0;
-bool is_oled_display_on = false;
-bool is_oled_display_dim = false;
+  const int OLED_RESET = 4;
+  const int TEXT_SIZE_SMALL = 1;
+  const int TEXT_SIZE_LARGE = 2;
+  const int ONE_K = 1000;
+  
+  const int OLED_HEIGHT = 64;
+  const int OLED_WIDTH = 128;
+  const int YELLOW_SEGMENT_HEIGHT = 16;
+  const int DISPLAY_FULL_BRIGHTNESS = 255;
+  const int DISPLAY_DIM_BRIGHTNESS = 0;
+  
+  const int IR_LED_PIN_3 = 3;
+  const int PHOTODIODE_PIN_2 = 2;
+  const int INTERRUPT_ZERO_ON_PIN_2 = 0;
+  
+  const uint16_t DIAL_CENTER_X = OLED_WIDTH / 2;
+  const uint16_t DIAL_RADIUS = (OLED_HEIGHT - YELLOW_SEGMENT_HEIGHT) - 1;
+  const uint16_t DIAL_CENTER_Y = OLED_HEIGHT - 1;
+  const uint16_t INDICATOR_LENGTH = DIAL_RADIUS - 5;
+  const uint16_t INDICATOR_WIDTH = 5;
+  const uint16_t LABEL_RADIUS = DIAL_RADIUS - 18;
+  const int DIAL_LABEL_Y_OFFSET = 6;
+  const int DIAL_LABEL_X_OFFSET = 4;
+  
+  const long MAJOR_TICKS[] =
+  		{ 0, 10000, 20000, 30000 };
+  const int MAJOR_TICK_COUNT = sizeof(MAJOR_TICKS)
+  		/ sizeof(MAJOR_TICKS[0]);
+  const int  MAJOR_TICK_LENGTH = 7;
+  const long MINOR_TICKS[] = {5000, 15000, 25000};
+  const int MINOR_TICK_COUNT = sizeof(MINOR_TICKS)
+  		/ sizeof(MINOR_TICKS[0]);
+  const int MINOR_TICK_LENGTH = 3;
+  
+  const uint16_t DIAL_MAX_RPM = MAJOR_TICKS[MAJOR_TICK_COUNT-1];
+  
+  const int HALF_CIRCLE_DEGREES = 180;
+  const float PI_RADIANS = PI/HALF_CIRCLE_DEGREES;
+  
+  const double MILLIS_PER_SECOND = 1000.0;
+  const double SECONDS_PER_MINUTE = 60.0;
+  const long DISPLAY_TIMEOUT_INTERVAL = 120 * MILLIS_PER_SECOND;
+  const long DISPLAY_DIM_INTERVAL = DISPLAY_TIMEOUT_INTERVAL/2;
+  const long DISPLAY_UPDATE_INTERVAL = 200;
+  
+  volatile unsigned long revolutions;
+  
+  unsigned long previous_revolutions = 0;
+  unsigned long previous_millis = 0;
+  unsigned long previous_display_millis = 0;
+  unsigned long last_sensor_time = 0;
+  bool is_oled_display_on = false;
+  bool is_oled_display_dim = false;
 }
 
 Adafruit_SSD1306 display(OLED_RESET);
@@ -128,12 +126,6 @@ void incrementRevolution() {
   revolutions++;
 }
 
-void printSensorStatus() {
-  Serial.print("Status: ");
-  int val = digitalRead(PHOTODIODE_PIN_2);
-  Serial.println(val==1?"High":"Low");
-}
-
 void updateDisplay() {
   long rpm = calculateRpm();
   if (rpm > 0) {
@@ -148,27 +140,6 @@ void updateDisplay() {
     drawDial(rpm);
     display.display();
   }
-}
-
-void printRpmCalculationValues(unsigned long current_millis,
-  unsigned long elapsed_millis, float elapsed_seconds,
-  unsigned long current_revolutions, float delta_revolutions, long rpm) {
-  Serial.print("Current Millis: ");
-  Serial.print((long) (current_millis));
-  Serial.print(" Prev Millis: ");
-  Serial.print((long) (previous_display_millis));
-  Serial.print(" Elapsed Millis: ");
-	Serial.print((long) (elapsed_millis));
-	Serial.print(" Elapsed Seconds: ");
-	Serial.print(elapsed_seconds);
-	Serial.print(" Current Rev: ");
-	Serial.print((long) (current_revolutions));
-	Serial.print(" Prev Rev: ");
-	Serial.print((long) (previous_revolutions));
-	Serial.print(" Delta Rev: ");
-	Serial.print(delta_revolutions);
-	Serial.print(" RPM: ");
-	Serial.println((long) (rpm));
 }
 
 long calculateRpm() {
