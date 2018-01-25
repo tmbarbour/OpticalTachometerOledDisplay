@@ -48,8 +48,8 @@ namespace {
   const double SECONDS_PER_MINUTE = 60.0;
   const long DISPLAY_TIMEOUT_INTERVAL = 120 * MILLIS_PER_SECOND;
   const long DISPLAY_DIM_INTERVAL = DISPLAY_TIMEOUT_INTERVAL/2;
-  const long DISPLAY_UPDATE_INTERVAL = 150;
-  const int  DISPLAY_AVERAGE_INTERVALS = 6;
+  const long DISPLAY_UPDATE_INTERVAL = 250;
+  const int  DISPLAY_AVERAGE_INTERVALS = 4;
   
   volatile unsigned long revolutions;
   
