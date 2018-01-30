@@ -246,8 +246,8 @@ void drawIndicatorHand(long rpm_value) {
     uint16_t indicator_top_x = getCircleXWithLengthAndAngle(INDICATOR_LENGTH, indicator_angle);
     uint16_t indicator_top_y = getCircleYWithLengthAndAngle(INDICATOR_LENGTH, indicator_angle);
 
-	display.drawTriangle(DIAL_CENTER_X - INDICATOR_WIDTH / PHOTODIODE_PIN_2,
-	                     DIAL_CENTER_Y,DIAL_CENTER_X + INDICATOR_WIDTH / PHOTODIODE_PIN_2,
+	display.drawTriangle(DIAL_CENTER_X - INDICATOR_WIDTH / 2,
+	                     DIAL_CENTER_Y,DIAL_CENTER_X + INDICATOR_WIDTH / 2,
 	                     DIAL_CENTER_Y,
 	                     indicator_top_x, 
 	                     indicator_top_y, 
