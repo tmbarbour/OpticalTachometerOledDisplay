@@ -1,10 +1,22 @@
 /*********************************************************************
 RPM Tachometer with OLED digital and analog display
  *********************************************************************/
- 
-#include <Wire.h>
-#include <Adafruit_GFX.h>
-#include <Adafruit_SSD1306.h>
+
+//One of the next two defines must be uncommented for the type of OLED display
+        //SSD1306 is typically the 0.96" OLED
+//#define OLED_TYPE_SSD1306
+        //SH1106 is typically a 1.3" OLED
+#define OLED_TYPE_SH1106
+
+
+#ifdef OLED_TYPE_SH1106 
+   #include <Adafruit_SH1106.h>
+#endif
+
+#ifdef OLED_TYPE_SSD1306
+  #include <Adafruit_SSD1306.h>
+#endif 
+
 #include <Math.h>
 
 namespace {
@@ -63,9 +75,14 @@ namespace {
   bool is_oled_display_dim = false;
 }
 
-Adafruit_SSD1306 display(OLED_RESET);
+#ifdef OLED_TYPE_SH1106
+   Adafruit_SH1106 display(OLED_RESET);
+#else
+   Adafruit_SSD1306 display(OLED_RESET);
+#endif
 
 void setup() {
+
   Serial.begin(9600);
   initOledDisplayWithI2CAddress(0x3C);
   display.setTextColor(WHITE);
@@ -97,25 +114,53 @@ void loop() {
 }
 
 void initOledDisplayWithI2CAddress(uint8_t i2c_address) {
-  display.begin(SSD1306_SWITCHCAPVCC, i2c_address);
+  #ifdef OLED_TYPE_SH1106
+    display.begin(SH1106_SWITCHCAPVCC, i2c_address);
+  #else
+    display.begin(SSD1306_SWITCHCAPVCC, i2c_address);
+  #endif
 }
 
 void turnOnDisplay() {
-  display.ssd1306_command(SSD1306_DISPLAYON); 
-  display.dim(false);;
+  commandOledOn();
+}
+
+void commandOledOn() {
+  #ifdef OLED_TYPE_SH1106
+    display.SH1106_command(SH1106_DISPLAYON);
+  #else
+    display.ssd1306_command(SSD1306_DISPLAYON); 
+  #endif
   is_oled_display_on = true;
-  is_oled_display_dim = false;
+  oledDisplayFullBrightness();
 }
 
 void turnOffDisplay() {
-  display.ssd1306_command(SSD1306_DISPLAYOFF); 
+  #ifdef OLED_TYPE_SH1106
+    display.SH1106_command(SH1106_DISPLAYOFF);
+  #else
+    display.ssd1306_command(SSD1306_DISPLAYOFF); 
+  #endif
   is_oled_display_on = false;
   is_oled_display_dim = false;
 }
 
 void dimDisplay() {
-  display.dim(true);
+  oledDisplayDim();
+}
+
+void oledDisplayDim() {
+  #ifdef OLED_TYPE_SSD1306 
+    display.dim(true); 
+  #endif
   is_oled_display_dim = true;
+}
+
+void oledDisplayFullBrightness() {
+  #ifdef OLED_TYPE_SSD1306 
+    display.dim(false); 
+  #endif
+  is_oled_display_dim = false;
 }
 
 void turnOnIrLED() {
