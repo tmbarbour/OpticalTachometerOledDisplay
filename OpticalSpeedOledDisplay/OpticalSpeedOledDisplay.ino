@@ -16,12 +16,12 @@
 //One of the next two #defines must be uncommented for the type of OLED display
      //SSD1306 is typically the 0.96" OLED
 //#define OLED_TYPE_SSD1306
-     //SH1106 is typically a 1.3" OLED ccc
+     //SH1106 is typically a 1.3" OLED 
 #define OLED_TYPE_SH1106
 
-//Either inches or CM, CM will take precedence if uncommented
+//Wheel diamter in either inches or CM
 #define WHEEL_DIAMETER_IN_INCHES 13.8  
-#define WHEEL_DIAMETER_IN_CM  35
+//#define WHEEL_DIAMETER_IN_CM  35
 #define WHEEL_SPOKE_COUNT 24
 #define DISPLAY_SAE_UNITS 
 //#define DISPLAY_METRIC_UNITS 
@@ -38,6 +38,12 @@
 #endif 
 
 #include <Math.h>
+
+#ifdef WHEEL_DIAMETER_IN_INCHES
+  #ifdef WHEEL_DIAMETER_IN_CM
+     "ERROR: Only Define Metric or SAE wheel diameter, not both"
+  #endif
+#endif
 
 #ifdef DISPLAY_METRIC_UNITS
   #ifdef DISPLAY_SAE_UNITS
@@ -112,14 +118,14 @@ namespace {
   const int DISPLAY_DIM_INTERVAL = DISPLAY_TIMEOUT_INTERVAL/2;
   const int DISPLAY_UPDATE_INTERVAL = 250;
   const int  DISPLAY_AVERAGE_INTERVALS = 6;
-  const float CM_PER_INCH = 0.393701;
+  const float CM_PER_INCH = 2.54;
   const float  CM_PER_METER = 100.0;
   const float  CM_PER_FOOT = 30.48;
 
   //If SPEED_DISPLAY is false it will display RPM
   const bool SPEED_DISPLAY = true;
   #ifndef WHEEL_DIAMETER_IN_CM
-     #define WHEEL_DIAMETER_IN_CM  WHEEL_DIAMETER_IN_INCHES * CM_PER_INCH
+     #define  WHEEL_DIAMETER_IN_CM  (WHEEL_DIAMETER_IN_INCHES * CM_PER_INCH)
   #endif
   const float WHEEL_CIRCUMFERENCE_IN_CM = WHEEL_DIAMETER_IN_CM * PI;
   
