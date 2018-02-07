@@ -157,19 +157,7 @@ void setup() {
   turnOnIrLED();
   attachPhotodiodeToInterrruptZero();
   last_sensor_time = millis();
-  turnOnDisplay();
-
-
-  Serial.print("MAJOR COUNT: ");
-  Serial.print(MAJOR_TICK_COUNT);
-
-  for (int i=0; i<MAJOR_TICK_COUNT; i++) {
-    Serial.print("Tick Label: ");
-    Serial.print(MAJOR_TICKS[i]);
-
-  }
-
-  
+  turnOnDisplay();  
 }
 
 void initArrays() {
@@ -276,14 +264,7 @@ double calculateRpm() {
   double elapsed_seconds = ((elapsed_millis * 1.0) / MILLIS_PER_SECOND);
   double delta_interval_pulses = (current_pulses - pulses_over_interval) * 1.0;
 
-//  Serial.print("     delta_interval_pulses: ");
-//  Serial.print(delta_interval_pulses);
-
   double rpm = (((delta_interval_pulses / elapsed_seconds) * SECONDS_PER_MINUTE) / (WHEEL_REFLECTIVE_STRIP_COUNT * 1.0));
-
-  Serial.print("     rpm: ");
-  Serial.println(rpm);
-  
   return rpm;
 }
 
@@ -318,13 +299,6 @@ double getSpeed(double rpm_value) {
   if (isSpeedPerSecond()) {
       speedValue = speedInCmPerMinute / 60;
   }
-  Serial.print("     rpm_value: ");
-  Serial.print(rpm_value);
-  Serial.print("     speedInCmPerMinute: ");
-  Serial.print(speedInCmPerMinute);
-  Serial.print("     speedValue: ");
-  Serial.println(speedValue);
-
   if (isMetricUnits()) {
     return speedValue / CM_PER_METER;
   } else {
