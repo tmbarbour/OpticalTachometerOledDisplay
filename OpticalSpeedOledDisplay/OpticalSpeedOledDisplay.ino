@@ -16,15 +16,16 @@
 //One of the next two #defines must be uncommented for the type of OLED display
      //SSD1306 is typically the 0.96" OLED
 //#define OLED_TYPE_SSD1306
-     //SH1106 is typically a 1.3" OLED
+     //SH1106 is typically a 1.3" OLED ccc
 #define OLED_TYPE_SH1106
 
 //Either inches or CM, CM will take precedence if uncommented
 #define WHEEL_DIAMETER_IN_INCHES 13.8  
 #define WHEEL_DIAMETER_IN_CM  35
 #define WHEEL_SPOKE_COUNT 24
-#define DISPLAY_SAE_UNITS
-//#define DISPLAY_METRIC_UNITS
+#define DISPLAY_SAE_UNITS 
+//#define DISPLAY_METRIC_UNITS 
+//#define SPEED_PER_SECOND 
 
 /*********************************************************************
  Libraries
@@ -38,17 +39,35 @@
 
 #include <Math.h>
 
+#ifdef DISPLAY_METRIC_UNITS
+  #ifdef DISPLAY_SAE_UNITS
+     "ERROR: Only Define Metric or SAE, not both"
+  #endif
+#endif
+
 namespace {
   #ifdef DISPLAY_SAE_UNITS
-    const unsigned int MAJOR_TICKS[] = { 0, 1000, 2000, 3000, 4000 };
-    const unsigned int MID_TICKS[] = { 500, 1500, 2500, 3500 };
-    const unsigned int MINOR_TICKS[] = {};
+    #ifdef SPEED_PER_SECOND
+      const unsigned int MAJOR_TICKS[] = { 0, 50, 100 };
+      const unsigned int MID_TICKS[] = { 25, 75 };
+      const unsigned int MINOR_TICKS[] = {10, 20, 30, 40, 60, 70, 80, 90};
+    #else
+      const unsigned int MAJOR_TICKS[] = { 0, 1000, 2000, 3000, 4000 };
+      const unsigned int MID_TICKS[] = { 500, 1500, 2500, 3500 };
+      const unsigned int MINOR_TICKS[] = {};
+    #endif
   #endif
   
   #ifdef DISPLAY_METRIC_UNITS
-    const unsigned int MAJOR_TICKS[] = { 0, 1000, 2000 };
-    const unsigned int MID_TICKS[] = { 500, 1500 };
-    const unsigned int MINOR_TICKS[] = {100, 200, 300, 400, 500, 600, 700, 800, 900, 1100, 1200, 1300, 1400, 1500, 1600, 1700, 1800, 1900};
+    #ifdef SPEED_PER_SECOND
+      const unsigned int MAJOR_TICKS[] = { 0, 10, 20 };
+      const unsigned int MID_TICKS[] = { 5, 15 };
+      const unsigned int MINOR_TICKS[] = {1, 2, 3, 4, 6, 7, 8, 9, 11, 12, 13, 14, 16, 17, 18, 19};
+     #else
+      const unsigned int MAJOR_TICKS[] = { 0, 1000, 2000 };
+      const unsigned int MID_TICKS[] = { 500, 1500 };
+      const unsigned int MINOR_TICKS[] = {100, 200, 300, 400, 600, 700, 800, 900, 1100, 1200, 1300, 1400, 1600, 1700, 1800, 1900};
+    #endif
   #endif
  
   const int OLED_RESET = 4;
@@ -78,7 +97,7 @@ namespace {
   const int MAJOR_TICK_COUNT = sizeof(MAJOR_TICKS) / sizeof(MAJOR_TICKS[0]);
   const int MAJOR_TICK_LENGTH = 7;
   const int MID_TICK_COUNT = sizeof(MID_TICKS) / sizeof(MID_TICKS[0]);
-  const int MID_TICK_LENGTH = 5;
+  const int MID_TICK_LENGTH = 6;
   const int MINOR_TICK_COUNT = sizeof(MINOR_TICKS) / sizeof(MINOR_TICKS[0]);
   const int MINOR_TICK_LENGTH = 3;
   
@@ -127,11 +146,23 @@ void setup() {
   initOledDisplayWithI2CAddress(0x3C);
   display.setTextColor(WHITE);
   initArrays();
-	
+  
   turnOnIrLED();
   attachPhotodiodeToInterrruptZero();
   last_sensor_time = millis();
   turnOnDisplay();
+
+
+  Serial.print("MAJOR COUNT: ");
+  Serial.print(MAJOR_TICK_COUNT);
+
+  for (int i=0; i<MAJOR_TICK_COUNT; i++) {
+    Serial.print("Tick Label: ");
+    Serial.print(MAJOR_TICKS[i]);
+
+  }
+
+  
 }
 
 void initArrays() {
@@ -150,7 +181,7 @@ void loop() {
   if (current_millis - previous_millis >= DISPLAY_UPDATE_INTERVAL) {
     previous_millis = current_millis;
     updateDisplay();
-	}
+  }
 }
 
 void initOledDisplayWithI2CAddress(uint8_t i2c_address) {
@@ -229,9 +260,6 @@ double calculateRpm() {
   unsigned long current_millis = millis();
   unsigned long current_pulses = sensor_pulses;
 
-//  Serial.print("Current Pulses: ");
-//  Serial.print(current_pulses);
-  
   queueIntervalRevolution(current_pulses, current_millis);
   
   unsigned long previous_display_millis = getIntervalMillis();
@@ -244,14 +272,10 @@ double calculateRpm() {
 //  Serial.print("     delta_interval_pulses: ");
 //  Serial.print(delta_interval_pulses);
 
-
   double rpm = (((delta_interval_pulses / elapsed_seconds) * SECONDS_PER_MINUTE) / (WHEEL_SPOKE_COUNT * 1.0));
 
   Serial.print("     rpm: ");
   Serial.println(rpm);
-
-
-
   
   return rpm;
 }
@@ -283,14 +307,21 @@ void drawBanner(double rpm_value) {
 
 double getSpeed(double rpm_value) {
   double speedInCmPerMinute = rpm_value * WHEEL_CIRCUMFERENCE_IN_CM;
+  double speedValue = speedInCmPerMinute;
+  if (isSpeedPerSecond()) {
+      speedValue = speedInCmPerMinute / 60;
+  }
+  Serial.print("     rpm_value: ");
+  Serial.print(rpm_value);
   Serial.print("     speedInCmPerMinute: ");
-  Serial.println(rpm_value);
-
+  Serial.print(speedInCmPerMinute);
+  Serial.print("     speedValue: ");
+  Serial.println(speedValue);
 
   if (isMetricUnits()) {
-    return speedInCmPerMinute / CM_PER_METER;
+    return speedValue / CM_PER_METER;
   } else {
-    return speedInCmPerMinute / CM_PER_FOOT;
+    return speedValue / CM_PER_FOOT;
   }
 }
 
@@ -307,15 +338,35 @@ void drawSpeedBanner(double speed_value) {
 
   display.setTextSize(TEXT_SIZE_LARGE);
   if (isMetricUnits()) {
-    display.print("Mpm: ");
+    if (isSpeedPerSecond()) {
+      display.print("m/s: ");
+    } else {
+      display.print("MPM: ");
+    }
   } else {
-    display.print("fpm: ");
+    if (isSpeedPerSecond()) {
+      display.print("f/s: ");
+    } else {
+      display.print("FPM: ");
+    } 
   }
-  display.print((long)speed_value);
+  if (isSpeedPerSecond()) {
+     display.print(speed_value);
+  } else {
+     display.print((long)speed_value);    
+  }
 }
 
 bool isMetricUnits() {
   #ifdef DISPLAY_METRIC_UNITS
+     return true;
+  #else
+     return false;
+  #endif
+}
+
+bool isSpeedPerSecond() {
+  #ifdef SPEED_PER_SECOND
      return true;
   #else
      return false;
@@ -367,7 +418,11 @@ void drawMajorTickLabels() {
     uint16_t dial_x = getCircleXWithLengthAndAngle(LABEL_RADIUS, tick_angle);
     uint16_t dial_y = getCircleYWithLengthAndAngle(LABEL_RADIUS, tick_angle);
     display.setCursor(dial_x - DIAL_LABEL_X_OFFSET, dial_y - DIAL_LABEL_Y_OFFSET);
-    int label_value = rpm_tick_value / ONE_K;
+    
+    int label_value = rpm_tick_value;
+    if (DIAL_MAX_RPM > ONE_K) {
+      label_value = rpm_tick_value / ONE_K;
+    }
     display.print(label_value);
   }
 }
