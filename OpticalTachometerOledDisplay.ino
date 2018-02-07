@@ -13,23 +13,22 @@
    Fourth: Choose if the display will be in Metric units (true) or SAE units (false)
  *********************************************************************/
 
-//One of the next two defines must be uncommented for the type of OLED display
-        //SSD1306 is typically the 0.96" OLED
+//One of the next two #defines must be uncommented for the type of OLED display
+     //SSD1306 is typically the 0.96" OLED
 //#define OLED_TYPE_SSD1306
-        //SH1106 is typically a 1.3" OLED
+     //SH1106 is typically a 1.3" OLED
 #define OLED_TYPE_SH1106
 
-//#define WHEEL_DIAMETER_IN_INCHES 13.8
-#define WHEEL_DIAMETER_IN_CM 35
-
-#define WHEEL_SPOKE_COUNT 6
-#define DISPLAY_METRIC_UNITS false
-
+//Either inches or CM, CM will take precedence if uncommented
+#define WHEEL_DIAMETER_IN_INCHES 13.8  
+#define WHEEL_DIAMETER_IN_CM  35
+#define WHEEL_SPOKE_COUNT 24
+#define DISPLAY_SAE_UNITS
+//#define DISPLAY_METRIC_UNITS
 
 /*********************************************************************
  Libraries
  *********************************************************************/
-
 #ifdef OLED_TYPE_SH1106 
    #include <Adafruit_SH1106.h>
 #endif
@@ -40,9 +39,18 @@
 #include <Math.h>
 
 namespace {
-  const long MAJOR_TICKS[] = { 0, 1000, 2000, 3000, 4000 };
-  const long MINOR_TICKS[] = {500, 1500, 2500, 3500};
+  #ifdef DISPLAY_SAE_UNITS
+    const unsigned int MAJOR_TICKS[] = { 0, 1000, 2000, 3000, 4000 };
+    const unsigned int MID_TICKS[] = { 500, 1500, 2500, 3500 };
+    const unsigned int MINOR_TICKS[] = {};
+  #endif
   
+  #ifdef DISPLAY_METRIC_UNITS
+    const unsigned int MAJOR_TICKS[] = { 0, 1000, 2000 };
+    const unsigned int MID_TICKS[] = { 500, 1500 };
+    const unsigned int MINOR_TICKS[] = {100, 200, 300, 400, 500, 600, 700, 800, 900, 1100, 1200, 1300, 1400, 1500, 1600, 1700, 1800, 1900};
+  #endif
+ 
   const int OLED_RESET = 4;
   const int TEXT_SIZE_SMALL = 1;
   const int TEXT_SIZE_LARGE = 2;
@@ -69,37 +77,39 @@ namespace {
   
   const int MAJOR_TICK_COUNT = sizeof(MAJOR_TICKS) / sizeof(MAJOR_TICKS[0]);
   const int MAJOR_TICK_LENGTH = 7;
+  const int MID_TICK_COUNT = sizeof(MID_TICKS) / sizeof(MID_TICKS[0]);
+  const int MID_TICK_LENGTH = 5;
   const int MINOR_TICK_COUNT = sizeof(MINOR_TICKS) / sizeof(MINOR_TICKS[0]);
   const int MINOR_TICK_LENGTH = 3;
   
-  const uint16_t DIAL_MAX_VALUE = MAJOR_TICKS[MAJOR_TICK_COUNT-1];
+  const uint16_t DIAL_MAX_RPM = MAJOR_TICKS[MAJOR_TICK_COUNT-1];
   
-  const int HALF_CIRCLE_DEGREES = 180;
+  const float HALF_CIRCLE_DEGREES = 180.0;
   const float PI_RADIANS = PI/HALF_CIRCLE_DEGREES;
   
-  const double MILLIS_PER_SECOND = 1000.0;
-  const double SECONDS_PER_MINUTE = 60.0;
-  const long DISPLAY_TIMEOUT_INTERVAL = 10 * MILLIS_PER_SECOND;
-  const long DISPLAY_DIM_INTERVAL = DISPLAY_TIMEOUT_INTERVAL/2;
-  const long DISPLAY_UPDATE_INTERVAL = 500;
-  const int  DISPLAY_AVERAGE_INTERVALS = 10;
-  #define CM_PER_INCH 0.393701
-  #define CM_PER_METER 100.0
-  #define CM_PER_FOOT 30.48
+  const float MILLIS_PER_SECOND = 1000.0;
+  const float SECONDS_PER_MINUTE = 60.0;
+  const int DISPLAY_TIMEOUT_INTERVAL = 10 * MILLIS_PER_SECOND;
+  const int DISPLAY_DIM_INTERVAL = DISPLAY_TIMEOUT_INTERVAL/2;
+  const int DISPLAY_UPDATE_INTERVAL = 250;
+  const int  DISPLAY_AVERAGE_INTERVALS = 6;
+  const float CM_PER_INCH = 0.393701;
+  const float  CM_PER_METER = 100.0;
+  const float  CM_PER_FOOT = 30.48;
 
   //If SPEED_DISPLAY is false it will display RPM
-  #define SPEED_DISPLAY true
+  const bool SPEED_DISPLAY = true;
   #ifndef WHEEL_DIAMETER_IN_CM
-     #define WHEEL_DIAMETER_IN_CM  (WHEEL_DIAMETER_IN_INCHES * CM_PER_INCH)
+     #define WHEEL_DIAMETER_IN_CM  WHEEL_DIAMETER_IN_INCHES * CM_PER_INCH
   #endif
-  const int WHEEL_CIRCUMFERENCE_IN_CM = WHEEL_DIAMETER_IN_CM * PI;
+  const float WHEEL_CIRCUMFERENCE_IN_CM = WHEEL_DIAMETER_IN_CM * PI;
   
   volatile unsigned long sensor_pulses;
-  
-  unsigned long previous_pulses = 0;
+
   unsigned long pulse_count[DISPLAY_AVERAGE_INTERVALS]; 
   unsigned long interval_millis[DISPLAY_AVERAGE_INTERVALS]; 
   unsigned int interval_index = 0;
+  
   unsigned long previous_millis = 0;
   unsigned long last_sensor_time = 0;
   bool is_oled_display_on = false;
@@ -113,7 +123,6 @@ namespace {
 #endif
 
 void setup() {
-
   Serial.begin(9600);
   initOledDisplayWithI2CAddress(0x3C);
   display.setTextColor(WHITE);
@@ -153,10 +162,6 @@ void initOledDisplayWithI2CAddress(uint8_t i2c_address) {
 }
 
 void turnOnDisplay() {
-  commandOledOn();
-}
-
-void commandOledOn() {
   #ifdef OLED_TYPE_SH1106
     display.SH1106_command(SH1106_DISPLAYON);
   #else
@@ -177,10 +182,6 @@ void turnOffDisplay() {
 }
 
 void dimDisplay() {
-  oledDisplayDim();
-}
-
-void oledDisplayDim() {
   #ifdef OLED_TYPE_SSD1306 
     display.dim(true); 
   #endif
@@ -227,36 +228,48 @@ void updateDisplay() {
 double calculateRpm() {
   unsigned long current_millis = millis();
   unsigned long current_pulses = sensor_pulses;
-  unsigned long previous_display_millis;
-  unsigned long previous_revolutions;
-    
-  queueIntervalPulses(current_pulses, current_millis);
-  previous_display_millis = getIntervalMillis();
-  previous_pulses = getIntervalPulses();
 
+//  Serial.print("Current Pulses: ");
+//  Serial.print(current_pulses);
+  
+  queueIntervalRevolution(current_pulses, current_millis);
+  
+  unsigned long previous_display_millis = getIntervalMillis();
+  unsigned long pulses_over_interval = getIntervalPulses();
+  
   unsigned long elapsed_millis =  current_millis - previous_display_millis;
-  float elapsed_seconds = ((elapsed_millis * 1.0) / MILLIS_PER_SECOND);
-  float delta_pulses = (current_pulses - previous_pulses) * 1.0;
+  double elapsed_seconds = ((elapsed_millis * 1.0) / MILLIS_PER_SECOND);
+  double delta_interval_pulses = (current_pulses - pulses_over_interval) * 1.0;
 
-  double rpm = (((delta_pulses / elapsed_seconds) * SECONDS_PER_MINUTE)/ (WHEEL_SPOKE_COUNT * 1.0));
+//  Serial.print("     delta_interval_pulses: ");
+//  Serial.print(delta_interval_pulses);
 
+
+  double rpm = (((delta_interval_pulses / elapsed_seconds) * SECONDS_PER_MINUTE) / (WHEEL_SPOKE_COUNT * 1.0));
+
+  Serial.print("     rpm: ");
+  Serial.println(rpm);
+
+
+
+  
   return rpm;
 }
 
-void queueIntervalPulses(unsigned long pulse_value, unsigned long milliseconds) {
+void queueIntervalRevolution(unsigned long revolution_value, unsigned long milliseconds) {
   interval_index++;
   int queue_index = (int)(interval_index % DISPLAY_AVERAGE_INTERVALS);
-  pulse_count[queue_index] = pulse_value; 
+  pulse_count[queue_index] = revolution_value; 
   interval_millis[queue_index] = milliseconds;
 }
 
 unsigned long getIntervalMillis() {
-  int index_front_of_queue = (int)((interval_index + 1)  % DISPLAY_AVERAGE_INTERVALS);
+  int index_front_of_queue = (int)((interval_index + 1) % DISPLAY_AVERAGE_INTERVALS);
   return interval_millis[index_front_of_queue];
 }
 
 unsigned long getIntervalPulses() {
-  int index_front_of_queue = (int)((interval_index + 1)  % DISPLAY_AVERAGE_INTERVALS);
+  int index_front_of_queue = (int)((interval_index + 1) % DISPLAY_AVERAGE_INTERVALS);
   return pulse_count[index_front_of_queue];
 }
 
@@ -269,12 +282,15 @@ void drawBanner(double rpm_value) {
 }
 
 double getSpeed(double rpm_value) {
-  double speedInCmPerMinute = rpm_value * (WHEEL_CIRCUMFERENCE_IN_CM * 1.0);
+  double speedInCmPerMinute = rpm_value * WHEEL_CIRCUMFERENCE_IN_CM;
+  Serial.print("     speedInCmPerMinute: ");
+  Serial.println(rpm_value);
 
-  if (DISPLAY_METRIC_UNITS) {
-    return speedInCmPerMinute / (CM_PER_METER * 1.0);
+
+  if (isMetricUnits()) {
+    return speedInCmPerMinute / CM_PER_METER;
   } else {
-    return speedInCmPerMinute / (CM_PER_FOOT * 1.0);
+    return speedInCmPerMinute / CM_PER_FOOT;
   }
 }
 
@@ -290,7 +306,7 @@ void drawSpeedBanner(double speed_value) {
   display.setCursor(0, 0);
 
   display.setTextSize(TEXT_SIZE_LARGE);
-  if (DISPLAY_METRIC_UNITS) {
+  if (isMetricUnits()) {
     display.print("Mpm: ");
   } else {
     display.print("fpm: ");
@@ -298,70 +314,78 @@ void drawSpeedBanner(double speed_value) {
   display.print((long)speed_value);
 }
 
-void drawDial(double value) {
+bool isMetricUnits() {
+  #ifdef DISPLAY_METRIC_UNITS
+     return true;
+  #else
+     return false;
+  #endif
+}
+
+void drawDial(double rpm_value) {
   display.drawCircle(DIAL_CENTER_X, DIAL_CENTER_Y, DIAL_RADIUS, WHITE);
   drawTickMarks();
   drawMajorTickLabels();
-  drawIndicatorHand(value);
+  drawIndicatorHand(rpm_value);
 }
 
 void drawTickMarks() {
   drawTicks(MAJOR_TICKS, MAJOR_TICK_COUNT, MAJOR_TICK_LENGTH);
+  drawTicks(MID_TICKS, MID_TICK_COUNT, MID_TICK_LENGTH);
   drawTicks(MINOR_TICKS, MINOR_TICK_COUNT, MINOR_TICK_LENGTH);
 }
 
-void drawTicks(const long ticks[], int tick_count, int tick_length) {
+void drawTicks(const unsigned int ticks[], int tick_count, int tick_length) {  
   for (int tick_index = 0; tick_index < tick_count; tick_index++) {
-		long dial_tick_value = ticks[tick_index];
-		float tick_angle = (HALF_CIRCLE_DEGREES * getPercentMaxDial(dial_tick_value)) + HALF_CIRCLE_DEGREES;
-		uint16_t dial_x = getCircleXWithLengthAndAngle(DIAL_RADIUS - 1, tick_angle);
-		uint16_t dial_y = getCircleYWithLengthAndAngle(DIAL_RADIUS - 1, tick_angle);
-		uint16_t tick_x = getCircleXWithLengthAndAngle(DIAL_RADIUS - tick_length, tick_angle);
-		uint16_t tick_y = getCircleYWithLengthAndAngle(DIAL_RADIUS - tick_length, tick_angle);
-		display.drawLine(dial_x, dial_y, tick_x, tick_y, WHITE);
-	}
+    long rpm_tick_value = ticks[tick_index];
+    float tick_angle = (HALF_CIRCLE_DEGREES * getPercentMaxRpm(rpm_tick_value)) + HALF_CIRCLE_DEGREES;
+    uint16_t dial_x = getCircleXWithLengthAndAngle(DIAL_RADIUS - 1, tick_angle);
+    uint16_t dial_y = getCircleYWithLengthAndAngle(DIAL_RADIUS - 1, tick_angle);
+    uint16_t tick_x = getCircleXWithLengthAndAngle(DIAL_RADIUS - tick_length, tick_angle);
+    uint16_t tick_y = getCircleYWithLengthAndAngle(DIAL_RADIUS - tick_length, tick_angle);
+    display.drawLine(dial_x, dial_y, tick_x, tick_y, WHITE);
+  }
 }
 
-float getPercentMaxDial(double value) {
-	float ret_value = (value * 1.0)/(DIAL_MAX_VALUE * 1.0);
-	return ret_value;
+float getPercentMaxRpm(double value) {
+  return value/(DIAL_MAX_RPM * 1.0);
 }
 
 float getCircleXWithLengthAndAngle(uint16_t radius, float angle) {
-	return DIAL_CENTER_X + radius * cos(angle*PI_RADIANS);
+  return DIAL_CENTER_X + radius * cos(angle*PI_RADIANS);
 };
 
 float getCircleYWithLengthAndAngle(uint16_t radius, float angle) {
-	return DIAL_CENTER_Y + radius * sin(angle*PI_RADIANS);
+  return DIAL_CENTER_Y + radius * sin(angle*PI_RADIANS);
 };
 
 void drawMajorTickLabels() {
-	display.setTextSize(TEXT_SIZE_SMALL);
-	for (int label_index = 0; label_index < MAJOR_TICK_COUNT; label_index++) {
-		long dial_tick_value = MAJOR_TICKS[label_index];
-		float tick_angle = (HALF_CIRCLE_DEGREES	* getPercentMaxDial(dial_tick_value)) + HALF_CIRCLE_DEGREES;
-		uint16_t dial_x = getCircleXWithLengthAndAngle(LABEL_RADIUS, tick_angle);
-		uint16_t dial_y = getCircleYWithLengthAndAngle(LABEL_RADIUS, tick_angle);
-		display.setCursor(dial_x - DIAL_LABEL_X_OFFSET, dial_y - DIAL_LABEL_Y_OFFSET);
-		int label_value = dial_tick_value / ONE_K;
-		display.print(label_value);
-	}
+  display.setTextSize(TEXT_SIZE_SMALL);
+  for (int label_index = 0; label_index < MAJOR_TICK_COUNT; label_index++) {
+    long rpm_tick_value = MAJOR_TICKS[label_index];
+    float tick_angle = (HALF_CIRCLE_DEGREES * getPercentMaxRpm(rpm_tick_value)) + HALF_CIRCLE_DEGREES;
+    uint16_t dial_x = getCircleXWithLengthAndAngle(LABEL_RADIUS, tick_angle);
+    uint16_t dial_y = getCircleYWithLengthAndAngle(LABEL_RADIUS, tick_angle);
+    display.setCursor(dial_x - DIAL_LABEL_X_OFFSET, dial_y - DIAL_LABEL_Y_OFFSET);
+    int label_value = rpm_tick_value / ONE_K;
+    display.print(label_value);
+  }
 }
 
-void drawIndicatorHand(double value) {
-  double hand_value = value;
+void drawIndicatorHand(double rpm_value) {
+  double value = rpm_value;
   if (SPEED_DISPLAY) {
-    hand_value = getSpeed(value);
-  } 
-  float indicator_angle = (HALF_CIRCLE_DEGREES * getPercentMaxDial(hand_value)) + HALF_CIRCLE_DEGREES;
+    value = getSpeed(rpm_value);
+  }
+  
+  float indicator_angle = (HALF_CIRCLE_DEGREES * getPercentMaxRpm(value)) + HALF_CIRCLE_DEGREES;
   uint16_t indicator_top_x = getCircleXWithLengthAndAngle(INDICATOR_LENGTH, indicator_angle);
   uint16_t indicator_top_y = getCircleYWithLengthAndAngle(INDICATOR_LENGTH, indicator_angle);
 
-	display.drawTriangle(DIAL_CENTER_X - INDICATOR_WIDTH / 2,
-	                     DIAL_CENTER_Y,DIAL_CENTER_X + INDICATOR_WIDTH / 2,
-	                     DIAL_CENTER_Y,
-	                     indicator_top_x, 
-	                     indicator_top_y, 
-	                     WHITE);
+  display.drawTriangle(DIAL_CENTER_X - INDICATOR_WIDTH / 2,
+                       DIAL_CENTER_Y,DIAL_CENTER_X + INDICATOR_WIDTH / 2,
+                       DIAL_CENTER_Y,
+                       indicator_top_x, 
+                       indicator_top_y, 
+                       WHITE);
 }
-
