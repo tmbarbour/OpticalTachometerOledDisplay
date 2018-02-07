@@ -19,10 +19,11 @@
      //SH1106 is typically a 1.3" OLED 
 #define OLED_TYPE_SH1106
 
-//Wheel diamter in either inches or CM
+//Wheel diameter in either inches or CM
 #define WHEEL_DIAMETER_IN_INCHES 13.8  
 //#define WHEEL_DIAMETER_IN_CM  35
-#define WHEEL_SPOKE_COUNT 24
+#define WHEEL_REFLECTIVE_STRIP_COUNT 24
+//Specify either SAE units or Metric units
 #define DISPLAY_SAE_UNITS 
 //#define DISPLAY_METRIC_UNITS 
 //#define SPEED_PER_SECOND 
@@ -278,7 +279,7 @@ double calculateRpm() {
 //  Serial.print("     delta_interval_pulses: ");
 //  Serial.print(delta_interval_pulses);
 
-  double rpm = (((delta_interval_pulses / elapsed_seconds) * SECONDS_PER_MINUTE) / (WHEEL_SPOKE_COUNT * 1.0));
+  double rpm = (((delta_interval_pulses / elapsed_seconds) * SECONDS_PER_MINUTE) / (WHEEL_REFLECTIVE_STRIP_COUNT * 1.0));
 
   Serial.print("     rpm: ");
   Serial.println(rpm);
