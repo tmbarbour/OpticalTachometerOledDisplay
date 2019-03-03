@@ -16,7 +16,7 @@ RPM Tachometer with OLED digital and analog display
 
 //One of the next two defines must be uncommented for the type of OLED display
         //SSD1306 is typically the 0.96" OLED
-#define OLED_TYPE_SH1106
+#define OLED_TYPE_SSD1306
         //SH1106 is typically a 1.3" OLED
 //#define OLED_TYPE_SH1106
 
