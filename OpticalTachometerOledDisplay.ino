@@ -1,10 +1,22 @@
+#include <Adafruit_GFX.h>
+#include <Adafruit_SPITFT_Macros.h>
+#include <Adafruit_SPITFT.h>
+#include <gfxfont.h>
+
+#include <Adafruit_GFX.h>
+#include <Adafruit_SPITFT_Macros.h>
+#include <Adafruit_SPITFT.h>
+#include <gfxfont.h>
+
+#include <Servo.h>
+
 /*********************************************************************
 RPM Tachometer with OLED digital and analog display
  *********************************************************************/
 
 //One of the next two defines must be uncommented for the type of OLED display
         //SSD1306 is typically the 0.96" OLED
-#define OLED_TYPE_SSD1306
+#define OLED_TYPE_SH1106
         //SH1106 is typically a 1.3" OLED
 //#define OLED_TYPE_SH1106
 
@@ -34,6 +46,7 @@ namespace {
   const int IR_LED_PIN_3 = 3;
   const int PHOTODIODE_PIN_2 = 2;
   const int INTERRUPT_ZERO_ON_PIN_2 = 0;
+  const int SERVO_PIN_9 = 9;
   
   const uint16_t DIAL_CENTER_X = OLED_WIDTH / 2;
   const uint16_t DIAL_RADIUS = (OLED_HEIGHT - YELLOW_SEGMENT_HEIGHT) - 1;
@@ -62,6 +75,14 @@ namespace {
   const long DISPLAY_DIM_INTERVAL = DISPLAY_TIMEOUT_INTERVAL/2;
   const long DISPLAY_UPDATE_INTERVAL = 250;
   const int  DISPLAY_AVERAGE_INTERVALS = 4;
+  const int  THROTTLE_POSITION_OFF = 0;
+  const int  THROTTLE_READ_INTERVAL = 100;
+  const int  THROTTLE_INCREASE_AMOUNT = 100;
+  const int  THROTTLE_DECREASE_AMOUNT = 100;
+  const int  THROTTLE_PIN = 0;
+  const int  THROTTLE_RED_LINE_RPM = 4050;
+  const int  THROTTLE_MAX = 4000;
+  const int  MAGNETO_SPARK_RELAY_PIN = 5;
   
   volatile unsigned long revolutions;
   
@@ -71,8 +92,14 @@ namespace {
   unsigned int interval_index = 0;
   unsigned long previous_millis = 0;
   unsigned long last_sensor_time = 0;
+  unsigned long last_throttle_millis = 0;
+  unsigned long previous_throttle_revolutions = 0;
+  long rpm = 0;
   bool is_oled_display_on = false;
   bool is_oled_display_dim = false;
+
+  Servo servo;
+  int   throttle_value = 0;
 }
 
 #ifdef OLED_TYPE_SH1106
@@ -92,11 +119,18 @@ void setup() {
   attachPhotodiodeToInterrruptZero();
   last_sensor_time = millis();
   turnOnDisplay();
+
+  attachServoAndSetThrottleOff();
 }
 
 void initArrays() {
   memset(revolution_count,0,sizeof(revolution_count));
   memset(interval_millis,0,sizeof(interval_millis));
+}
+
+void attachServoAndSetThrottleOff() {
+  servo.attach(SERVO_PIN_9);
+  servo.write(THROTTLE_POSITION_OFF);
 }
 
 void loop() {
@@ -110,6 +144,12 @@ void loop() {
   if (current_millis - previous_millis >= DISPLAY_UPDATE_INTERVAL) {
     previous_millis = current_millis;
     updateDisplay();
+	}  
+
+  if (current_millis - last_throttle_millis >= THROTTLE_READ_INTERVAL) {
+    last_throttle_millis = current_millis;
+    readThrottle();
+    adjustSpeed();
 	}
 }
 
@@ -178,7 +218,7 @@ void incrementRevolution() {
 }
 
 void updateDisplay() {
-  long rpm = calculateRpm();
+  rpm = calculateRpm();
   if (rpm > 0) {
     last_sensor_time = millis();
     if (!is_oled_display_on || is_oled_display_dim) {
@@ -204,10 +244,23 @@ long calculateRpm() {
   previous_revolutions = getIntervalRevolutions();
 
   unsigned long elapsed_millis =  current_millis - previous_display_millis;
-  float elapsed_seconds = ((elapsed_millis * 1.0) / MILLIS_PER_SECOND);
+  float elapsed_seconds = ((elapsed_millis * 1.0) / MILLIS_PER_SECOND) * 1.0;
   float delta_revolutions = (current_revolutions - previous_revolutions) * 1.0;
 
   long rpm = (long) ((delta_revolutions / elapsed_seconds) * SECONDS_PER_MINUTE);
+  return rpm;
+}
+
+long getImmediateRpm() {
+  unsigned long current_millis = millis();
+  unsigned long current_revolutions = revolutions;
+
+  unsigned long elapsed_millis =  current_millis - last_throttle_millis;
+  float elapsed_seconds = ((elapsed_millis * 1.0) / MILLIS_PER_SECOND) * 1.0;
+  float delta_revolutions = (current_revolutions - previous_throttle_revolutions) * 1.0;
+
+  long rpm = (long) ((delta_revolutions / elapsed_seconds) * SECONDS_PER_MINUTE);
+  previous_throttle_revolutions = current_revolutions;
   return rpm;
 }
 
@@ -297,4 +350,28 @@ void drawIndicatorHand(long rpm_value) {
 	                     indicator_top_x, 
 	                     indicator_top_y, 
 	                     WHITE);
+}
+
+void readThrottle() {
+  throttle_value = analogRead(THROTTLE_PIN);
+}
+
+void adjustSpeed() {
+  if (rpm >= THROTTLE_RED_LINE_RPM) {
+    shutDownEngine();
+  }
+  long engine_rpm = getImmediateRpm();
+  if (rpm < throttle_value) {
+    changeEngineSpeed(min(throttle_value + THROTTLE_INCREASE_AMOUNT, THROTTLE_MAX));
+  } else {
+    changeEngineSpeed(max(throttle_value - THROTTLE_DECREASE_AMOUNT, THROTTLE_POSITION_OFF));
+  }
+}
+
+void shutDownEngine() {
+  digitalWrite(MAGNETO_SPARK_RELAY_PIN, HIGH); 
+}
+
+void changeEngineSpeed(int throttle_position) {
+  servo.write(throttle_position);
 }
